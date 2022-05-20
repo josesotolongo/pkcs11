@@ -21,21 +21,25 @@ typedef CK_RV(__cdecl* Finalize)(CK_VOID_PTR);
 typedef CK_RV(__cdecl* GetInfo)(CK_INFO_PTR);
 
 typedef CK_RV(__cdecl* SlotList)(CK_BBOOL, CK_SLOT_ID_PTR, CK_ULONG_PTR);
+typedef CK_RV(__cdecl* GetSlotInfo)(CK_SLOT_ID, CK_SLOT_INFO_PTR);
 typedef CK_RV(__cdecl* TokenInfo)(CK_SLOT_ID, CK_TOKEN_INFO_PTR);
 
 class crypt
 {
 public:
+	crypt();
 	crypt(LPCWSTR libPath);
+
+	~crypt();
 
 	void LoadDLL(LPCWSTR libPath);
 	void InitializeCrypto();
-	void FreeCrypto();
 	bool IsLoaded();
 	
 	void DisplayInfo();					// Displays information of the current cryptoki library being used.
 	void DisplayTokenInfo();			// Displays the information of the current token.
 
+	CK_SLOT_INFO GetFirstSlotInfo();
 private:
 	HINSTANCE instLib;
 

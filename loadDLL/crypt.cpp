@@ -1,10 +1,27 @@
 #include "crypt.h"
 
+#pragma region Constructors - Destructors
+crypt::crypt() { instLib = NULL; }
+
+crypt::~crypt()
+{	
+	if (instLib == NULL)
+		return;
+
+	Finalize procFinalize = (Finalize)GetProcAddress(instLib, "C_Finalize");
+	if (procFinalize == NULL)
+	{
+		cout << "Unable to free cryptoki library." << endl;
+		return;
+	}
+	CK_RV result = procFinalize(NULL_PTR);
+}
 
 crypt::crypt(LPCWSTR libPath)
 {
 	LoadDLL(libPath);
 }
+#pragma endregion
 
 #pragma region Load and Free
 void crypt::LoadDLL(LPCWSTR libPath)
@@ -29,17 +46,6 @@ void crypt::InitializeCrypto()
 	}
 	CK_RV result = procInitialize((CK_VOID_PTR)&initArgs);
 	
-}
-
-void crypt::FreeCrypto()
-{
-	Finalize procFinalize = (Finalize)GetProcAddress(instLib, "C_Finalize");
-	if (procFinalize == NULL)
-	{
-		cout << "Unable to free cryptoki library." << endl;
-		return;
-	}
-	CK_RV result = procFinalize(NULL_PTR);
 }
 
 bool crypt::IsLoaded()
@@ -80,6 +86,32 @@ void crypt::DisplayTokenInfo()
 	cout << "====================================" << endl;
 }
 
+/// <summary>
+/// Retrieves the information about the first slot. 
+/// </summary>
+/// <param name="slotList"></param>
+/// <returns></returns>
+CK_SLOT_INFO crypt::GetFirstSlotInfo()
+{
+	CK_SLOT_ID_PTR slotList = GetSlotList();
+	if (slotList == NULL_PTR)
+	{
+		cout << "Slot List is empty, unable to retrieve first slot info" << endl;
+		return CK_SLOT_INFO{};
+	}
+
+	CK_SLOT_INFO slotInfo{};
+	GetSlotInfo procGetSlotInfo = (GetSlotInfo)GetProcAddress(instLib, "C_GetSlotInfo");
+	if (procGetSlotInfo == NULL)
+	{
+		cout << "Unable to access C_GetSlotInfo" << endl;
+		return slotInfo;
+	}
+
+	CK_RV rv = procGetSlotInfo(slotList[0], &slotInfo);
+	return slotInfo;
+}
+
 CK_TOKEN_INFO crypt::GetTokenInfo(CK_SLOT_ID_PTR slotList)
 {
 	CK_TOKEN_INFO tokenInfo{};
@@ -103,7 +135,7 @@ CK_SLOT_ID_PTR crypt::GetSlotList()
 		cout << "Unable to access C_GetSlotList" << endl;
 		return pSlotList;
 	}
-	CK_ULONG ulCount;
+	CK_ULONG ulCount = 0;
 	CK_RV rv = procGetSlotList(CK_FALSE, NULL_PTR, &ulCount);
 	if ((rv == CKR_OK) && (ulCount > 0))
 	{
