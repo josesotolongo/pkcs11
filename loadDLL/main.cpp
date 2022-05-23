@@ -7,7 +7,9 @@ using namespace std;
 
 #pragma region func declaration
 void DisplayMainMenu();
+
 void Options(int optionNum, crypt crypto);
+void startSession(crypt crypto);
 #pragma endregion
 
 int main(void)
@@ -24,8 +26,6 @@ int main(void)
 		return -1;
 	}
 	cout << "Cryptoki DLLs loaded successfully!" << endl;
-
-	// Initialize the cryptoki library
 	crypto.InitializeCrypto();
 
 	bool exit = false;
@@ -69,6 +69,8 @@ void Options(int optionNum, crypt crypto)
 		case 2:
 			crypto.DisplayTokenInfo();
 			break;
+		case 3:
+			crypto.DisplaySessionMenu();
 		default:
 			break;
 	}
