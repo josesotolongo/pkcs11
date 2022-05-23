@@ -24,25 +24,44 @@ typedef CK_RV(__cdecl* SlotList)(CK_BBOOL, CK_SLOT_ID_PTR, CK_ULONG_PTR);
 typedef CK_RV(__cdecl* GetSlotInfo)(CK_SLOT_ID, CK_SLOT_INFO_PTR);
 typedef CK_RV(__cdecl* TokenInfo)(CK_SLOT_ID, CK_TOKEN_INFO_PTR);
 
+typedef CK_RV(__cdecl* OpenSession)(CK_SLOT_ID, CK_FLAGS, CK_VOID_PTR, CK_NOTIFY, CK_SESSION_HANDLE_PTR);
+typedef CK_RV(__cdecl* CloseSession)(CK_SESSION_HANDLE);
+typedef CK_RV(__cdecl* SessionInfo)(CK_SESSION_HANDLE, CK_SESSION_INFO_PTR);
+
+//logging functions
+typedef CK_RV(__cdecl* Login)(CK_SESSION_HANDLE, CK_USER_TYPE, CK_UTF8CHAR_PTR, CK_ULONG);
+
 class crypt
 {
 public:
 	crypt();
 	crypt(LPCWSTR libPath);
 
-	~crypt();
-
 	void LoadDLL(LPCWSTR libPath);
 	void InitializeCrypto();
+	void FreeCrypto();
 	bool IsLoaded();
-	
+
 	void DisplayInfo();					// Displays information of the current cryptoki library being used.
 	void DisplayTokenInfo();			// Displays the information of the current token.
 
-	CK_SLOT_INFO GetFirstSlotInfo();
+	// Session Management functions
+	void DisplaySessionMenu();
+
 private:
+	// Handles
 	HINSTANCE instLib;
+	CK_SESSION_HANDLE hSession;
+
+	void Open();
+	void TokenLogin();
+	void Close();
+
+
 
 	CK_SLOT_ID_PTR GetSlotList();
 	CK_TOKEN_INFO GetTokenInfo(CK_SLOT_ID_PTR slotList);
+	CK_SLOT_ID GetFirstSlotId();
+
+	CK_SESSION_INFO GetSessionInfo();
 };

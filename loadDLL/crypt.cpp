@@ -3,20 +3,6 @@
 #pragma region Constructors - Destructors
 crypt::crypt() { instLib = NULL; }
 
-crypt::~crypt()
-{	
-	if (instLib == NULL)
-		return;
-
-	Finalize procFinalize = (Finalize)GetProcAddress(instLib, "C_Finalize");
-	if (procFinalize == NULL)
-	{
-		cout << "Unable to free cryptoki library." << endl;
-		return;
-	}
-	CK_RV result = procFinalize(NULL_PTR);
-}
-
 crypt::crypt(LPCWSTR libPath)
 {
 	LoadDLL(libPath);
@@ -51,6 +37,20 @@ void crypt::InitializeCrypto()
 bool crypt::IsLoaded()
 {
 	return (instLib != NULL) ? true : false;
+}
+
+void crypt::FreeCrypto()
+{
+	if (instLib == NULL)
+		return;
+
+	Finalize procFinalize = (Finalize)GetProcAddress(instLib, "C_Finalize");
+	if (procFinalize == NULL)
+	{
+		cout << "Unable to free cryptoki library." << endl;
+		return;
+	}
+	CK_RV result = procFinalize(NULL_PTR);
 }
 #pragma endregion
 
@@ -91,13 +91,13 @@ void crypt::DisplayTokenInfo()
 /// </summary>
 /// <param name="slotList"></param>
 /// <returns></returns>
-CK_SLOT_INFO crypt::GetFirstSlotInfo()
+CK_SLOT_ID crypt::GetFirstSlotId()
 {
 	CK_SLOT_ID_PTR slotList = GetSlotList();
 	if (slotList == NULL_PTR)
 	{
 		cout << "Slot List is empty, unable to retrieve first slot info" << endl;
-		return CK_SLOT_INFO{};
+		return CK_SLOT_ID{};
 	}
 
 	CK_SLOT_INFO slotInfo{};
@@ -105,11 +105,13 @@ CK_SLOT_INFO crypt::GetFirstSlotInfo()
 	if (procGetSlotInfo == NULL)
 	{
 		cout << "Unable to access C_GetSlotInfo" << endl;
-		return slotInfo;
+		return NULL_PTR;
 	}
 
 	CK_RV rv = procGetSlotInfo(slotList[0], &slotInfo);
-	return slotInfo;
+	CK_SLOT_ID slotId = slotList[0];
+
+	return slotId;
 }
 
 CK_TOKEN_INFO crypt::GetTokenInfo(CK_SLOT_ID_PTR slotList)
@@ -146,3 +148,122 @@ CK_SLOT_ID_PTR crypt::GetSlotList()
 
 	return pSlotList;
 }
+
+#pragma region Session Management Functions
+void crypt::DisplaySessionMenu()
+{
+	cout << "\nSession menu" << endl;
+	cout << "1. Open Session" << endl;
+	cout << "2. Get operation state" << endl;
+	cout << "3. Close Session" << endl;
+
+	bool exit = false;
+	while (!exit)
+	{
+		int userInput;
+		cin >> userInput;
+
+		if (userInput == 3)
+			exit = true;
+
+		switch (userInput)
+		{
+		case 1:
+			Open();
+			break;
+		case 2:
+			break;
+		case 3:
+			Close();
+			break;
+		}
+	}
+}
+
+void crypt::Open()
+{
+	CK_BYTE application;
+	CK_SLOT_ID id = GetFirstSlotId();
+
+	OpenSession procOpenSession = (OpenSession)GetProcAddress(instLib, "C_OpenSession");
+	if (procOpenSession == NULL)
+	{
+		cout << "Unable to start open session" << endl;
+		return;
+	}
+
+	application = 17;
+	CK_RV rv = procOpenSession(id, CKF_SERIAL_SESSION | CKF_RW_SESSION, 
+								(CK_VOID_PTR)&application, NULL_PTR, &hSession);
+
+	CK_SESSION_INFO seshInfo = GetSessionInfo();
+	TokenLogin();
+}
+
+void crypt::Close()
+{
+	if (hSession == NULL)
+		return;
+
+	CloseSession procCloseSession = (CloseSession)GetProcAddress(instLib, "C_CloseSesion");
+	if (procCloseSession == NULL)
+	{
+		cout << "Unable to call Close Session" << endl;
+		return;
+	}
+
+	CK_RV rv = procCloseSession(hSession);
+
+}
+
+/// <summary>
+/// Session State
+/// 0 - RO Public Session
+/// 1 - RO User Functions
+/// 2 - RW Public Functions
+/// 3 - RW User Functions
+/// 4 - RW SO Functions
+/// </summary>
+/// <returns></returns>
+CK_SESSION_INFO crypt::GetSessionInfo()
+{
+	CK_SESSION_INFO sessionInfo{};
+	SessionInfo procGetSessionInfo = (SessionInfo)GetProcAddress(instLib, "C_GetSessionInfo");
+	if (procGetSessionInfo == NULL)
+	{
+		cout << "Unable to GetSessionInfo" << endl;
+		return CK_SESSION_INFO{};
+	}
+
+	if (hSession == NULL)
+	{
+		cout << "There are no open sessions." << endl;
+		return CK_SESSION_INFO{};
+	}
+	CK_RV rv = procGetSessionInfo(hSession, &sessionInfo);
+	return sessionInfo;
+}
+#pragma endregion
+
+#pragma region Login
+void crypt::TokenLogin()
+{
+	CK_UTF8CHAR pin[] = { "Present" };
+	if (hSession == NULL)
+	{
+		cout << "Session has not been started." << endl;
+		return;
+	}
+
+	Login procLogin = (Login)GetProcAddress(instLib, "C_Login");
+	if (procLogin == NULL)
+	{ 
+		cout << "Unable to load Login function" << endl;
+		return;
+	}
+	CK_RV rv = procLogin(hSession, CKU_USER, pin, sizeof(pin - 1));
+	
+}
+
+#pragma endregion
+
