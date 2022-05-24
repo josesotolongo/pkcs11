@@ -1,8 +1,6 @@
 #include "crypt.h"
 
-#pragma region Constructors - Destructors
-crypt::crypt() { instLib = NULL; }
-
+#pragma region Constructors
 crypt::crypt(LPCWSTR libPath)
 {
 	LoadDLL(libPath);

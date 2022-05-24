@@ -37,39 +37,41 @@ typedef CK_RV(__cdecl* Login)(CK_SESSION_HANDLE, CK_USER_TYPE, CK_UTF8CHAR_PTR, 
 
 class crypt
 {
-public:
-	crypt();
-	crypt(LPCWSTR libPath);
-
-	void LoadDLL(LPCWSTR libPath);
-	void InitializeCrypto();
-	void FreeCrypto();
-	bool IsLoaded();
-
-	void DisplayInfo();					// Displays information of the current cryptoki library being used.
-	void DisplayTokenInfo();			// Displays the information of the current token.
-
-	// Session Management functions
-	void DisplaySessionMenu();
-
-	void newToken();
-	void InitTokenPin();
-	void SetTokenPin();
-
 private:
 	// Handles
 	HINSTANCE instLib;
 	CK_SESSION_HANDLE hSession;
 
-	void Open();
-	void TokenLogin();
-	void Close();
+// Initialize class
+public: 
+	crypt(LPCWSTR libPath);
 
+	void InitializeCrypto();
+	void FreeCrypto();
+	bool IsLoaded();
+private:
+	void LoadDLL(LPCWSTR libPath);
 
+// Display infos
+public:
+	void DisplayInfo();					// Displays information of the current cryptoki library being used.
+	void DisplayTokenInfo();			// Displays the information of the current token.
+	void DisplaySessionMenu();			// Display the Session Menu options
 
+// Token Functions
+public:
+	void newToken();
+	void InitTokenPin();
+	void SetTokenPin();
+private:
 	CK_SLOT_ID_PTR GetSlotList();
 	CK_TOKEN_INFO GetTokenInfo(CK_SLOT_ID_PTR slotList);
 	CK_SLOT_ID GetFirstSlotId();
 
+// Session Functions
+private:
+	void Open();
+	void TokenLogin();
+	void Close();
 	CK_SESSION_INFO GetSessionInfo();
 };
