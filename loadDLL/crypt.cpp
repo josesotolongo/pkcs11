@@ -86,6 +86,51 @@ void crypt::DisplayTokenInfo()
 	cout << "====================================" << endl;
 }
 
+void crypt::newToken()
+{
+	InitToken procInitToken = (InitToken)GetProcAddress(instLib, "C_InitToken");
+	if (procInitToken == NULL)
+	{
+		cout << "Unable to load C_InitToken" << endl;
+		return;
+	}
+	
+	CK_SLOT_ID slotId = GetFirstSlotId();
+	CK_UTF8CHAR_PTR pin = (CK_UTF8CHAR_PTR)"MyPin";
+	CK_UTF8CHAR label[32];
+
+	memset(label, ' ', sizeof(label));
+	memcpy(label, "My First token", strlen("My First token"));
+	CK_RV rv = procInitToken(slotId, pin, strlen("MyPin"), label);
+}
+
+void crypt::InitTokenPin()
+{
+	// Start an active session
+	// Check if session is active
+	if (hSession == NULL)
+	{
+		Open();
+	}
+	CK_SESSION_INFO seshInfo = GetSessionInfo();
+	if (seshInfo.state == CKS_RW_SO_FUNCTIONS)
+	{
+		CK_UTF8CHAR newPin[] = { "MyPIN" };
+		InitPin procInitPin = (InitPin)GetProcAddress(instLib, "C_InitPIN");
+		if (procInitPin == NULL)
+		{
+			cout << "Unable to load InitPin function" << endl;
+			return;
+		}
+		CK_RV rv = procInitPin(hSession, newPin, sizeof(newPin) - 1);
+	}
+}
+
+void crypt::SetTokenPin()
+{
+
+}
+
 /// <summary>
 /// Retrieves the information about the first slot. 
 /// </summary>
@@ -197,7 +242,7 @@ void crypt::Open()
 								(CK_VOID_PTR)&application, NULL_PTR, &hSession);
 
 	CK_SESSION_INFO seshInfo = GetSessionInfo();
-	TokenLogin();
+	//TokenLogin();
 }
 
 void crypt::Close()
@@ -249,6 +294,7 @@ CK_SESSION_INFO crypt::GetSessionInfo()
 void crypt::TokenLogin()
 {
 	CK_UTF8CHAR pin[] = { "Present" };
+	CK_TOKEN_INFO tokenInfo = GetTokenInfo(GetSlotList());
 	if (hSession == NULL)
 	{
 		cout << "Session has not been started." << endl;
@@ -262,7 +308,7 @@ void crypt::TokenLogin()
 		return;
 	}
 	CK_RV rv = procLogin(hSession, CKU_USER, pin, sizeof(pin - 1));
-	
+		
 }
 
 #pragma endregion

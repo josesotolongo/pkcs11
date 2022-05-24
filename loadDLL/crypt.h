@@ -28,6 +28,10 @@ typedef CK_RV(__cdecl* OpenSession)(CK_SLOT_ID, CK_FLAGS, CK_VOID_PTR, CK_NOTIFY
 typedef CK_RV(__cdecl* CloseSession)(CK_SESSION_HANDLE);
 typedef CK_RV(__cdecl* SessionInfo)(CK_SESSION_HANDLE, CK_SESSION_INFO_PTR);
 
+typedef CK_RV(__cdecl* InitToken)(CK_SLOT_ID, CK_UTF8CHAR_PTR, CK_ULONG, CK_UTF8CHAR_PTR);
+typedef CK_RV(__cdecl* InitPin)(CK_SESSION_HANDLE, CK_UTF8CHAR_PTR, CK_ULONG);
+typedef CK_RV(__cdecl* SetPin)(CK_SESSION_HANDLE, CK_UTF8CHAR_PTR, CK_ULONG, CK_UTF8CHAR_PTR, CK_ULONG);
+
 //logging functions
 typedef CK_RV(__cdecl* Login)(CK_SESSION_HANDLE, CK_USER_TYPE, CK_UTF8CHAR_PTR, CK_ULONG);
 
@@ -47,6 +51,10 @@ public:
 
 	// Session Management functions
 	void DisplaySessionMenu();
+
+	void newToken();
+	void InitTokenPin();
+	void SetTokenPin();
 
 private:
 	// Handles
