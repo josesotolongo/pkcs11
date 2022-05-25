@@ -8,7 +8,6 @@
 #define NULL_PTR 0
 #endif
 
-
 #include <Windows.h>
 #include <pkcs11.h>
 #include <iostream>
@@ -34,6 +33,7 @@ typedef CK_RV(__cdecl* SetPin)(CK_SESSION_HANDLE, CK_UTF8CHAR_PTR, CK_ULONG, CK_
 
 //logging functions
 typedef CK_RV(__cdecl* Login)(CK_SESSION_HANDLE, CK_USER_TYPE, CK_UTF8CHAR_PTR, CK_ULONG);
+typedef CK_RV(__cdecl* Logout)(CK_SESSION_HANDLE);
 
 class crypt
 {
@@ -71,7 +71,8 @@ private:
 // Session Functions
 private:
 	void Open();
-	void TokenLogin();
 	void Close();
+	void TokenLogin();
+	void TokenLogout();
 	CK_SESSION_INFO GetSessionInfo();
 };

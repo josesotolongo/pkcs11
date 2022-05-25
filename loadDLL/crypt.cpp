@@ -240,13 +240,15 @@ void crypt::Open()
 								(CK_VOID_PTR)&application, NULL_PTR, &hSession);
 
 	CK_SESSION_INFO seshInfo = GetSessionInfo();
-	//TokenLogin();
+	TokenLogin();
 }
 
 void crypt::Close()
 {
 	if (hSession == NULL)
 		return;
+
+	TokenLogout();
 
 	CloseSession procCloseSession = (CloseSession)GetProcAddress(instLib, "C_CloseSesion");
 	if (procCloseSession == NULL)
@@ -288,10 +290,10 @@ CK_SESSION_INFO crypt::GetSessionInfo()
 }
 #pragma endregion
 
-#pragma region Login
+#pragma region Login - Logout
 void crypt::TokenLogin()
 {
-	CK_UTF8CHAR pin[] = { "Present" };
+	CK_UTF8CHAR pin[] = { "tokenTest2 " };
 	CK_TOKEN_INFO tokenInfo = GetTokenInfo(GetSlotList());
 	if (hSession == NULL)
 	{
@@ -305,9 +307,23 @@ void crypt::TokenLogin()
 		cout << "Unable to load Login function" << endl;
 		return;
 	}
-	CK_RV rv = procLogin(hSession, CKU_USER, pin, sizeof(pin - 1));
-		
+	CK_RV rv = procLogin(hSession, CKU_USER, pin, sizeof(pin) - 1);
 }
 
+void crypt::TokenLogout()
+{
+	if (hSession == NULL)
+	{
+		cout << "Unable to logout of session." << endl;
+		return;
+	}
+
+	Logout procLogout = (Logout)GetProcAddress(instLib, "C_Logout");
+	if (procLogout == NULL)
+	{
+		cout << "Unable to use "
+	}
+	CK_RV rv = procLogout(hSession);
+}
 #pragma endregion
 
