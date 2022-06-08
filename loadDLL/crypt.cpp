@@ -29,7 +29,8 @@ void crypt::InitializeCrypto()
 		return;
 	}
 	CK_RV result = procInitialize((CK_VOID_PTR)&initArgs);
-	
+	assert(result == CKR_OK);
+	cout << "C_Initialize successful..." << endl;
 }
 
 bool crypt::IsLoaded()
@@ -50,7 +51,6 @@ void crypt::FreeCrypto()
 	}
 	CK_RV result = procFinalize(NULL_PTR);
 }
-#pragma endregion
 
 void crypt::DisplayInfo()
 {
@@ -70,6 +70,7 @@ void crypt::DisplayInfo()
 	printf("Library Description: %s\n", info.libraryDescription);
 	cout << "=======================================" << endl;
 }
+#pragma endregion
 
 void crypt::DisplayTokenInfo()
 {
@@ -126,7 +127,7 @@ void crypt::InitTokenPin()
 
 void crypt::SetTokenPin()
 {
-
+	// TODO: Implement set pin functions if needed
 }
 
 /// <summary>
@@ -238,9 +239,7 @@ void crypt::Open()
 	application = 17;
 	CK_RV rv = procOpenSession(id, CKF_SERIAL_SESSION | CKF_RW_SESSION, 
 								(CK_VOID_PTR)&application, NULL_PTR, &hSession);
-
-	CK_SESSION_INFO seshInfo = GetSessionInfo();
-	TokenLogin();
+	assert(rv == CKR_OK);
 }
 
 void crypt::Close()
@@ -291,39 +290,125 @@ CK_SESSION_INFO crypt::GetSessionInfo()
 #pragma endregion
 
 #pragma region Login - Logout
-void crypt::TokenLogin()
+CK_RV crypt::TokenLogin()
 {
 	CK_UTF8CHAR pin[] = { "tokenTest2 " };
 	CK_TOKEN_INFO tokenInfo = GetTokenInfo(GetSlotList());
 	if (hSession == NULL)
 	{
 		cout << "Session has not been started." << endl;
-		return;
+		return CKR_SESSION_HANDLE_INVALID;
 	}
 
 	Login procLogin = (Login)GetProcAddress(instLib, "C_Login");
 	if (procLogin == NULL)
 	{ 
 		cout << "Unable to load Login function" << endl;
-		return;
+		return CKR_FUNCTION_FAILED;
 	}
 	CK_RV rv = procLogin(hSession, CKU_USER, pin, sizeof(pin) - 1);
+	return rv;
 }
 
-void crypt::TokenLogout()
+CK_RV crypt::TokenLogout()
 {
 	if (hSession == NULL)
 	{
 		cout << "Unable to logout of session." << endl;
-		return;
+		return CKR_SESSION_HANDLE_INVALID;
 	}
 
 	Logout procLogout = (Logout)GetProcAddress(instLib, "C_Logout");
 	if (procLogout == NULL)
 	{
-		cout << "Unable to use "
+		cout << "Unable to use Logout function" << endl;
+		return CKR_FUNCTION_FAILED;
 	}
 	CK_RV rv = procLogout(hSession);
+	return rv;
 }
 #pragma endregion
 
+#pragma region Keys - Function
+void crypt::KeyCreation()
+{
+	CK_RV rv;
+
+	// Start Session
+	Open();
+
+	//Used to generate key
+	GenerateKey generateKey = (GenerateKey)GetProcAddress(instLib, "C_GenerateKey");
+	assert(generateKey != NULL);
+
+	//Used to generate key/pair
+	GenerateKeyPair generateKP = (GenerateKeyPair)GetProcAddress(instLib, "C_GenerateKeyPair");
+	assert(generateKP != NULL);
+
+	AttributeValue GetAttributeValue = (AttributeValue)GetProcAddress(instLib, "C_GetAttributeValue");
+	assert(GetAttributeValue != NULL);
+
+	// Login to Token
+	rv = TokenLogin();
+
+	if (rv == CKR_OK)
+	{
+		// Generate Single Key Example
+		CK_OBJECT_HANDLE hKey;
+		CK_MECHANISM mechanism = { CKM_DES_KEY_GEN, NULL_PTR, 0 };
+
+		rv = generateKey(hSession, &mechanism, NULL_PTR, 0, &hKey);
+		assert(rv == CKR_OK);
+
+		CK_BYTE_PTR pModulus, pExponent;
+		CK_ATTRIBUTE temp[] =
+		{
+			{CKA_MODULUS, NULL_PTR, 0},
+			{CKA_PUBLIC_EXPONENT, NULL_PTR, 0}
+		};
+		rv = GetAttributeValue(hSession, hKey, temp, 2);
+		assert(rv == CKR_OK);
+	}
+
+	if (rv == CKR_OK)
+	{
+		// Generate Key Pair Example
+		CK_OBJECT_HANDLE hPublicKey, hPrivateKey;
+		CK_MECHANISM mechanism =
+		{
+			CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
+		};
+		CK_ULONG modulusBits = 768;
+		CK_BYTE publicExponent[] = { 3 };
+		CK_BYTE subject[] = { "subject test" };
+		CK_BYTE id[] = { 123 };
+		CK_BYTE True = CK_TRUE;
+		CK_ATTRIBUTE publicKeyTemplate[]
+		{
+			{CKA_ENCRYPT, &True, sizeof(True)},
+			{CKA_VERIFY, &True, sizeof(True)},
+			{CKA_WRAP, &True, sizeof(True)},
+			{CKA_MODULUS_BITS,  &modulusBits, sizeof(modulusBits)},
+			{CKA_PUBLIC_EXPONENT, publicExponent, sizeof(publicExponent)}
+		};
+		CK_ATTRIBUTE privateKeyTemplate[] = {
+			{CKA_TOKEN, &True, sizeof(true)},
+			{CKA_PRIVATE, &True, sizeof(true)},
+			{CKA_SUBJECT, subject, sizeof(subject)},
+			{CKA_ID, id, sizeof(id)},
+			{CKA_SENSITIVE, &True, sizeof(true)},
+			{CKA_DECRYPT, &True, sizeof(true)},
+			{CKA_SIGN, &True, sizeof(true)},
+			{CKA_UNWRAP, &True, sizeof(true)}
+		};
+		rv = generateKP(hSession, &mechanism, publicKeyTemplate, 5, privateKeyTemplate, 8, &hPublicKey, &hPrivateKey);
+		assert(rv == CKR_OK);
+	}
+
+	
+
+
+
+}
+
+#pragma endregion

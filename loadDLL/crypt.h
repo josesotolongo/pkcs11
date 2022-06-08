@@ -12,6 +12,7 @@
 #include <pkcs11.h>
 #include <iostream>
 #include <stdio.h>
+#include <cassert>
 using namespace std;
 
 //functions typedefs
@@ -35,6 +36,22 @@ typedef CK_RV(__cdecl* SetPin)(CK_SESSION_HANDLE, CK_UTF8CHAR_PTR, CK_ULONG, CK_
 typedef CK_RV(__cdecl* Login)(CK_SESSION_HANDLE, CK_USER_TYPE, CK_UTF8CHAR_PTR, CK_ULONG);
 typedef CK_RV(__cdecl* Logout)(CK_SESSION_HANDLE);
 
+// Object Management Functions
+typedef CK_RV(__cdecl* CreateObject)(CK_SESSION_HANDLE, CK_ATTRIBUTE_PTR, CK_ULONG, CK_OBJECT_HANDLE_PTR);
+typedef CK_RV(__cdecl* AttributeValue)(CK_SESSION_HANDLE, CK_OBJECT_HANDLE, CK_ATTRIBUTE_PTR, CK_ULONG);
+typedef CK_RV(__cdecl* GenerateKey)(CK_SESSION_HANDLE, CK_MECHANISM_PTR, CK_ATTRIBUTE_PTR, CK_ULONG, CK_OBJECT_HANDLE_PTR);
+typedef CK_RV(__cdecl* GenerateKeyPair)
+(
+	CK_SESSION_HANDLE,
+	CK_MECHANISM_PTR,
+	CK_ATTRIBUTE_PTR,
+	CK_ULONG,
+	CK_ATTRIBUTE_PTR,
+	CK_ULONG,
+	CK_OBJECT_HANDLE_PTR,
+	CK_OBJECT_HANDLE_PTR
+);
+
 class crypt
 {
 private:
@@ -47,6 +64,7 @@ public:
 	crypt(LPCWSTR libPath);
 
 	void InitializeCrypto();
+	void FunctionList();
 	void FreeCrypto();
 	bool IsLoaded();
 private:
@@ -72,7 +90,13 @@ private:
 private:
 	void Open();
 	void Close();
-	void TokenLogin();
-	void TokenLogout();
+	CK_RV TokenLogin();
+	CK_RV TokenLogout();
 	CK_SESSION_INFO GetSessionInfo();
+
+
+// Key Object
+public:
+	void KeyCreation();
+private:
 };
