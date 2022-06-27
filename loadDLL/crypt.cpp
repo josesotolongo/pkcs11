@@ -70,6 +70,84 @@ void crypt::DisplayInfo()
 	printf("Library Description: %s\n", info.libraryDescription);
 	cout << "=======================================" << endl;
 }
+
+void crypt::GetMechList()
+{
+	CK_SLOT_ID slotId = GetFirstSlotId();
+	CK_ULONG ulCount;
+	CK_MECHANISM_TYPE_PTR pMechList;
+	
+	GetMechanismList procMechList = (GetMechanismList)GetProcAddress(instLib, "C_GetMechanismList");
+	if (procMechList == NULL)
+	{
+		cout << "Unable to load GetMechanismList" << endl;
+		return;
+	}
+
+	CK_RV rv = procMechList(slotId, NULL_PTR, &ulCount);
+	if ((rv == CKR_OK) && (ulCount > 0))
+	{
+		pMechList = (CK_MECHANISM_TYPE_PTR)malloc(ulCount * sizeof(CK_MECHANISM_TYPE));
+		rv = procMechList(slotId, pMechList, &ulCount);
+		assert(rv == CKR_OK);
+
+		for (int i = 0; i < ulCount; i++)
+		{
+			cout << pMechList[i] << endl;
+		}
+
+		free(pMechList);
+	}
+}
+
+void crypt::GetMechInfo()
+{
+	CK_SLOT_ID slotId = GetFirstSlotId();
+	CK_MECHANISM_INFO info;
+	CK_RV rv;
+
+	GetMechanismInfo procGetMechInfo = (GetMechanismInfo)GetProcAddress(instLib, "C_GetMechanismInfo");
+	assert(procGetMechInfo != NULL);
+
+	rv = procGetMechInfo(slotId, CKM_EC_KEY_PAIR_GEN, &info);
+	assert(rv == CKR_OK);
+
+	if (info.flags & CKF_GENERATE_KEY_PAIR)
+	{
+		cout << "supports key pair" << endl;
+	}
+}
+
+void crypt::LogAndDisplay(LogLevel severity, std::string message)
+{
+	std::string level = ConvertLogLevel(severity);
+	cout << level << message << endl;
+	return;
+}
+
+/// <summary>
+/// Converts the LogLevel to string value.
+/// </summary>
+/// <param name="severity"></param>
+/// <returns></returns>
+std::string crypt::ConvertLogLevel(LogLevel severity)
+{
+	std::string level; 
+	switch (severity)
+	{
+	case INFO:
+		level = "INFO: ";
+		break;
+	case WARN:
+		level = "WARN: ";
+		break;
+	default:
+		level = "";
+		break;
+	}
+
+	return level;
+}
 #pragma endregion
 
 void crypt::DisplayTokenInfo()
@@ -90,8 +168,7 @@ void crypt::newToken()
 	InitToken procInitToken = (InitToken)GetProcAddress(instLib, "C_InitToken");
 	if (procInitToken == NULL)
 	{
-		cout << "Unable to load C_InitToken" << endl;
-		return;
+		LogAndDisplay(WARN, "Unable to load InitToken function");
 	}
 	
 	CK_SLOT_ID slotId = GetFirstSlotId();
@@ -337,10 +414,6 @@ void crypt::KeyCreation()
 	// Start Session
 	Open();
 
-	//Used to generate key
-	GenerateKey generateKey = (GenerateKey)GetProcAddress(instLib, "C_GenerateKey");
-	assert(generateKey != NULL);
-
 	//Used to generate key/pair
 	GenerateKeyPair generateKP = (GenerateKeyPair)GetProcAddress(instLib, "C_GenerateKeyPair");
 	assert(generateKP != NULL);
@@ -353,62 +426,47 @@ void crypt::KeyCreation()
 
 	if (rv == CKR_OK)
 	{
-		// Generate Single Key Example
-		CK_OBJECT_HANDLE hKey;
-		CK_MECHANISM mechanism = { CKM_DES_KEY_GEN, NULL_PTR, 0 };
+		char objLabel[32];
 
-		rv = generateKey(hSession, &mechanism, NULL_PTR, 0, &hKey);
-		assert(rv == CKR_OK);
+		CK_OBJECT_HANDLE hPublicKey = CK_INVALID_HANDLE;
+		CK_OBJECT_HANDLE hPrivateKey = CK_INVALID_HANDLE;
+		CK_MECHANISM mechanism = { CKM_EC_KEY_PAIR_GEN, NULL_PTR, 0 };
 
-		CK_BYTE_PTR pModulus, pExponent;
-		CK_ATTRIBUTE temp[] =
-		{
-			{CKA_MODULUS, NULL_PTR, 0},
-			{CKA_PUBLIC_EXPONENT, NULL_PTR, 0}
-		};
-		rv = GetAttributeValue(hSession, hKey, temp, 2);
-		assert(rv == CKR_OK);
-	}
+		CK_KEY_TYPE ecKeyType = CKK_EC;
 
-	if (rv == CKR_OK)
-	{
-		// Generate Key Pair Example
-		CK_OBJECT_HANDLE hPublicKey, hPrivateKey;
-		CK_MECHANISM mechanism =
+		CK_OBJECT_CLASS pub_ec_class = CKO_PUBLIC_KEY;
+		CK_OBJECT_CLASS priv_ec_class = CKO_PRIVATE_KEY;
+
+		CK_ATTRIBUTE pubKeyTemplate[] = 
 		{
-			CKM_RSA_PKCS_KEY_PAIR_GEN, NULL_PTR, 0
+			{CKA_LABEL,		NULL, 0},
+			{CKA_ENCRYPT,	&ckTrue, sizeof(CK_BBOOL)},
+			{CKA_VERIFY,	&ckTrue, sizeof(CK_BBOOL)},
+			{CKA_WRAP,		&ckTrue, sizeof(CK_BBOOL)},
 		};
-		CK_ULONG modulusBits = 768;
-		CK_BYTE publicExponent[] = { 3 };
-		CK_BYTE subject[] = { "subject test" };
-		CK_BYTE id[] = { 123 };
-		CK_BYTE True = CK_TRUE;
-		CK_ATTRIBUTE publicKeyTemplate[]
+
+		CK_ATTRIBUTE privateKeyTemplate[] =
 		{
-			{CKA_ENCRYPT, &True, sizeof(True)},
-			{CKA_VERIFY, &True, sizeof(True)},
-			{CKA_WRAP, &True, sizeof(True)},
-			{CKA_MODULUS_BITS,  &modulusBits, sizeof(modulusBits)},
-			{CKA_PUBLIC_EXPONENT, publicExponent, sizeof(publicExponent)}
+			{CKA_LABEL, NULL, 0},
+			{CKA_TOKEN,		&ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_PRIVATE,	&ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_DECRYPT,	&ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_SIGN,		&ckTrue,		sizeof(CK_BBOOL)},
 		};
-		CK_ATTRIBUTE privateKeyTemplate[] = {
-			{CKA_TOKEN, &True, sizeof(true)},
-			{CKA_PRIVATE, &True, sizeof(true)},
-			{CKA_SUBJECT, subject, sizeof(subject)},
-			{CKA_ID, id, sizeof(id)},
-			{CKA_SENSITIVE, &True, sizeof(true)},
-			{CKA_DECRYPT, &True, sizeof(true)},
-			{CKA_SIGN, &True, sizeof(true)},
-			{CKA_UNWRAP, &True, sizeof(true)}
-		};
-		rv = generateKP(hSession, &mechanism, publicKeyTemplate, 5, privateKeyTemplate, 8, &hPublicKey, &hPrivateKey);
+		CK_ULONG pubKeySize = sizeof(pubKeyTemplate) / sizeof(CK_ATTRIBUTE);
+		CK_ULONG priKeySize = sizeof(privateKeyTemplate) / sizeof(CK_ATTRIBUTE);
+
+		pubKeyTemplate[0].pValue = objLabel;
+		strcpy((char*)objLabel, "EC Pub Key");
+		pubKeyTemplate[0].ulValueLen = strlen(objLabel);
+
+		privateKeyTemplate[0].pValue = objLabel;
+		strcpy((char*)objLabel, "EC Priv Key");
+		privateKeyTemplate[0].ulValueLen = strlen(objLabel);
+
+		rv = generateKP(hSession, &mechanism, pubKeyTemplate, pubKeySize, privateKeyTemplate, priKeySize, &hPublicKey, &hPrivateKey);
 		assert(rv == CKR_OK);
 	}
-
-	
-
-
-
 }
 
 #pragma endregion

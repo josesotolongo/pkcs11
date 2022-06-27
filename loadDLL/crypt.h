@@ -1,6 +1,5 @@
 #pragma once
 #define CK_PTR *
-#define CK_DEFINE_FUNCTION(returnType, name) returnType __declspec(dllexport) name
 #define CK_DECLARE_FUNCTION(returnType, name) returnType __declspec(dllimport) name
 #define CK_DECLARE_FUNCTION_POINTER(returnType, name) returnType __declspec(dllimport) (* name)
 #define CK_CALLBACK_FUNCTION(returnType, name) returnType (* name)
@@ -19,6 +18,8 @@ using namespace std;
 typedef CK_RV(__cdecl* Initialize)(CK_VOID_PTR);
 typedef CK_RV(__cdecl* Finalize)(CK_VOID_PTR);
 typedef CK_RV(__cdecl* GetInfo)(CK_INFO_PTR);
+typedef CK_RV(__cdecl* GetMechanismList)(CK_SLOT_ID, CK_MECHANISM_TYPE_PTR, CK_ULONG_PTR);
+typedef CK_RV(__cdecl* GetMechanismInfo)(CK_SLOT_ID, CK_MECHANISM_TYPE, CK_MECHANISM_INFO_PTR);
 
 typedef CK_RV(__cdecl* SlotList)(CK_BBOOL, CK_SLOT_ID_PTR, CK_ULONG_PTR);
 typedef CK_RV(__cdecl* GetSlotInfo)(CK_SLOT_ID, CK_SLOT_INFO_PTR);
@@ -52,6 +53,12 @@ typedef CK_RV(__cdecl* GenerateKeyPair)
 	CK_OBJECT_HANDLE_PTR
 );
 
+enum LogLevel
+{
+	INFO,
+	WARN,
+};
+
 class crypt
 {
 private:
@@ -59,16 +66,26 @@ private:
 	HINSTANCE instLib;
 	CK_SESSION_HANDLE hSession;
 
+	CK_BBOOL ckTrue = TRUE;
+	CK_BBOOL ckFalse = FALSE;
+
 // Initialize class
 public: 
 	crypt(LPCWSTR libPath);
 
 	void InitializeCrypto();
-	void FunctionList();
 	void FreeCrypto();
 	bool IsLoaded();
+	void GetMechList();
+	void GetMechInfo();
 private:
 	void LoadDLL(LPCWSTR libPath);
+
+public:
+	void LogAndDisplay(LogLevel severity, std::string messsage);
+
+private:
+	std::string ConvertLogLevel(LogLevel serverity);
 
 // Display infos
 public:

@@ -24,7 +24,7 @@ int main(void)
 
 
 	crypto.InitializeCrypto();
-	crypto.GetMechInfo();
+	//crypto.GetMechInfo();
 	crypto.KeyCreation();
 	crypto.FreeCrypto();
 
