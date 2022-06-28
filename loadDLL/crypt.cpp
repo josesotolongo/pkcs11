@@ -25,12 +25,11 @@ void crypt::InitializeCrypto()
 	Initialize procInitialize = (Initialize)GetProcAddress(instLib, "C_Initialize");
 	if (procInitialize == NULL)
 	{
-		cout << "Unable to initialize cryptoki" << endl;
-		return;
+		LogAndDisplay(WARN, "Unable to initialize Cryptoki...");
 	}
 	CK_RV result = procInitialize((CK_VOID_PTR)&initArgs);
 	assert(result == CKR_OK);
-	cout << "C_Initialize successful..." << endl;
+	LogAndDisplay(INFO, "Cryptoki has been initialized...");
 }
 
 bool crypt::IsLoaded()
@@ -186,7 +185,7 @@ void crypt::InitTokenPin()
 	// Check if session is active
 	if (hSession == NULL)
 	{
-		Open();
+		//Open();
 	}
 	CK_SESSION_INFO seshInfo = GetSessionInfo();
 	if (seshInfo.state == CKS_RW_SO_FUNCTIONS)
@@ -217,7 +216,7 @@ CK_SLOT_ID crypt::GetFirstSlotId()
 	CK_SLOT_ID_PTR slotList = GetSlotList();
 	if (slotList == NULL_PTR)
 	{
-		cout << "Slot List is empty, unable to retrieve first slot info" << endl;
+		LogAndDisplay(WARN, "Slot List is empty, unable to retrieve first slot info");
 		return CK_SLOT_ID{};
 	}
 
@@ -225,7 +224,7 @@ CK_SLOT_ID crypt::GetFirstSlotId()
 	GetSlotInfo procGetSlotInfo = (GetSlotInfo)GetProcAddress(instLib, "C_GetSlotInfo");
 	if (procGetSlotInfo == NULL)
 	{
-		cout << "Unable to access C_GetSlotInfo" << endl;
+		LogAndDisplay(WARN, "Unable to access C_GetSlotInfo");
 		return NULL_PTR;
 	}
 
@@ -255,7 +254,7 @@ CK_SLOT_ID_PTR crypt::GetSlotList()
 	SlotList procGetSlotList = (SlotList)GetProcAddress(instLib, "C_GetSlotList");
 	if (procGetSlotList == NULL)
 	{
-		cout << "Unable to access C_GetSlotList" << endl;
+		LogAndDisplay(INFO, "Unable to load C_GetSlotList function...");
 		return pSlotList;
 	}
 	CK_ULONG ulCount = 0;
@@ -271,51 +270,21 @@ CK_SLOT_ID_PTR crypt::GetSlotList()
 }
 
 #pragma region Session Management Functions
-void crypt::DisplaySessionMenu()
+
+void crypt::open_session()
 {
-	cout << "\nSession menu" << endl;
-	cout << "1. Open Session" << endl;
-	cout << "2. Get operation state" << endl;
-	cout << "3. Close Session" << endl;
-
-	bool exit = false;
-	while (!exit)
-	{
-		int userInput;
-		cin >> userInput;
-
-		if (userInput == 3)
-			exit = true;
-
-		switch (userInput)
-		{
-		case 1:
-			Open();
-			break;
-		case 2:
-			break;
-		case 3:
-			Close();
-			break;
-		}
-	}
-}
-
-void crypt::Open()
-{
-	CK_BYTE application;
+	CK_RV rv = CKR_OK;
 	CK_SLOT_ID id = GetFirstSlotId();
 
 	OpenSession procOpenSession = (OpenSession)GetProcAddress(instLib, "C_OpenSession");
 	if (procOpenSession == NULL)
 	{
-		cout << "Unable to start open session" << endl;
+		LogAndDisplay(WARN, "Unable to load open session...");
 		return;
 	}
 
-	application = 17;
-	CK_RV rv = procOpenSession(id, CKF_SERIAL_SESSION | CKF_RW_SESSION, 
-								(CK_VOID_PTR)&application, NULL_PTR, &hSession);
+	rv = procOpenSession(id, CKF_SERIAL_SESSION | CKF_RW_SESSION, 
+								(CK_VOID_PTR)&hApp, NULL_PTR, &hSession);
 	assert(rv == CKR_OK);
 }
 
@@ -409,62 +378,57 @@ CK_RV crypt::TokenLogout()
 #pragma region Keys - Function
 void crypt::KeyCreation()
 {
-	CK_RV rv;
+	GenerateKey procGenKey = (GenerateKey)GetProcAddress(instLib, "C_GenerateKey");
+	if (procGenKey == NULL)
+	{
+		LogAndDisplay(WARN, "Unable to load GenerateKey function...");
+		return;
+	}
 
-	// Start Session
-	Open();
-
-	//Used to generate key/pair
-	GenerateKeyPair generateKP = (GenerateKeyPair)GetProcAddress(instLib, "C_GenerateKeyPair");
-	assert(generateKP != NULL);
-
-	AttributeValue GetAttributeValue = (AttributeValue)GetProcAddress(instLib, "C_GetAttributeValue");
-	assert(GetAttributeValue != NULL);
-
-	// Login to Token
-	rv = TokenLogin();
-
+	CK_RV rv = TokenLogin();
 	if (rv == CKR_OK)
 	{
+		CK_OBJECT_HANDLE hObject = CK_INVALID_HANDLE;
+
+		static CK_OBJECT_CLASS objClass = CKO_SECRET_KEY;
 		char objLabel[32];
+		static CK_BBOOL ckTrue = TRUE;
+		static CK_BBOOL ckFalse = FALSE;
 
-		CK_OBJECT_HANDLE hPublicKey = CK_INVALID_HANDLE;
-		CK_OBJECT_HANDLE hPrivateKey = CK_INVALID_HANDLE;
-		CK_MECHANISM mechanism = { CKM_EC_KEY_PAIR_GEN, NULL_PTR, 0 };
+		static CK_MECHANISM mechanism = { CKM_DES3_KEY_GEN, NULL, 0 };
 
-		CK_KEY_TYPE ecKeyType = CKK_EC;
+		// DES3 Key Length
+		static CK_BYTE usKeyLength = 24;
 
-		CK_OBJECT_CLASS pub_ec_class = CKO_PUBLIC_KEY;
-		CK_OBJECT_CLASS priv_ec_class = CKO_PRIVATE_KEY;
-
-		CK_ATTRIBUTE pubKeyTemplate[] = 
+		CK_ATTRIBUTE objectTemplate[] =
 		{
-			{CKA_LABEL,		NULL, 0},
-			{CKA_ENCRYPT,	&ckTrue, sizeof(CK_BBOOL)},
-			{CKA_VERIFY,	&ckTrue, sizeof(CK_BBOOL)},
-			{CKA_WRAP,		&ckTrue, sizeof(CK_BBOOL)},
+			
+			{CKA_TOKEN,         &ckTrue,    sizeof(CK_BBOOL)},      /* Permanent Key -> set false for session key */ 
+			{CKA_ENCRYPT,       &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_DECRYPT,       &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_SIGN,          &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_VERIFY,        &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_WRAP,          &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_UNWRAP,        &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_EXTRACTABLE,   &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_MODIFIABLE,    &ckFalse,   sizeof(CK_BBOOL)},
+			{CKA_PRIVATE,       &ckTrue,	sizeof(CK_BBOOL)},
+			{CKA_SENSITIVE,     &ckTrue,    sizeof(CK_BBOOL)},
+			{CKA_DERIVE,        &ckFalse,   sizeof(CK_BBOOL)},
+			{CKA_VALUE_LEN,		&usKeyLength, sizeof(usKeyLength)},
+			{CKA_LABEL,         NULL,   0},
 		};
+		CK_ULONG objectSize = sizeof(objectTemplate) / sizeof(CK_ATTRIBUTE);
 
-		CK_ATTRIBUTE privateKeyTemplate[] =
-		{
-			{CKA_LABEL, NULL, 0},
-			{CKA_TOKEN,		&ckTrue,		sizeof(CK_BBOOL)},
-			{CKA_PRIVATE,	&ckTrue,		sizeof(CK_BBOOL)},
-			{CKA_DECRYPT,	&ckTrue,		sizeof(CK_BBOOL)},
-			{CKA_SIGN,		&ckTrue,		sizeof(CK_BBOOL)},
-		};
-		CK_ULONG pubKeySize = sizeof(pubKeyTemplate) / sizeof(CK_ATTRIBUTE);
-		CK_ULONG priKeySize = sizeof(privateKeyTemplate) / sizeof(CK_ATTRIBUTE);
+		/* Fill in the key label */
+		objectTemplate[objectSize - 1].pValue = objLabel;
+		// strcpy( (char *)objLabel, "NewSecretKey" );
+		strcpy((char*)objLabel, "DES3key");
 
-		pubKeyTemplate[0].pValue = objLabel;
-		strcpy((char*)objLabel, "EC Pub Key");
-		pubKeyTemplate[0].ulValueLen = strlen(objLabel);
+		// Adjust size of label (ALWAYS LAST ENTRY IN ARRAY)
+		objectTemplate[objectSize - 1].ulValueLen = strlen(objLabel);
 
-		privateKeyTemplate[0].pValue = objLabel;
-		strcpy((char*)objLabel, "EC Priv Key");
-		privateKeyTemplate[0].ulValueLen = strlen(objLabel);
-
-		rv = generateKP(hSession, &mechanism, pubKeyTemplate, pubKeySize, privateKeyTemplate, priKeySize, &hPublicKey, &hPrivateKey);
+		rv = procGenKey(hSession, &mechanism, objectTemplate, objectSize, &hObject);
 		assert(rv == CKR_OK);
 	}
 }
