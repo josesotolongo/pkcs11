@@ -65,9 +65,7 @@ private:
 	// Handles
 	HINSTANCE instLib;
 	CK_SESSION_HANDLE hSession;
-
-	CK_BBOOL ckTrue = TRUE;
-	CK_BBOOL ckFalse = FALSE;
+	CK_BYTE hApp;
 
 // Initialize class
 public: 
@@ -91,7 +89,6 @@ private:
 public:
 	void DisplayInfo();					// Displays information of the current cryptoki library being used.
 	void DisplayTokenInfo();			// Displays the information of the current token.
-	void DisplaySessionMenu();			// Display the Session Menu options
 
 // Token Functions
 public:
@@ -104,10 +101,13 @@ private:
 	CK_SLOT_ID GetFirstSlotId();
 
 // Session Functions
-private:
-	void Open();
-	void Close();
+public:
+	void open_session();
 	CK_RV TokenLogin();
+private:
+
+	void Close();
+
 	CK_RV TokenLogout();
 	CK_SESSION_INFO GetSessionInfo();
 

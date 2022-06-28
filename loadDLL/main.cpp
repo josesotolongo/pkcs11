@@ -20,11 +20,14 @@ int main(void)
 	}
 	cout << "Cryptoki DLLs loaded successfully!" << endl;
 
-	crypto.LogAndDisplay(INFO, "Test");
-
-
+	// Start cryptoki API 
 	crypto.InitializeCrypto();
-	//crypto.GetMechInfo();
+	
+	// Open session with token
+	crypto.open_session();
+
+	// login to the toke
+
 	crypto.KeyCreation();
 	crypto.FreeCrypto();
 
