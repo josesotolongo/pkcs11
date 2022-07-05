@@ -67,6 +67,9 @@ private:
 	CK_SESSION_HANDLE hSession;
 	CK_BYTE hApp;
 
+	// Token Info
+	CK_TOKEN_INFO tokenInfo;
+
 // Initialize class
 public: 
 	crypt(LPCWSTR libPath);
@@ -103,12 +106,12 @@ private:
 // Session Functions
 public:
 	void open_session();
-	CK_RV TokenLogin();
+	CK_RV token_login();
 private:
 
-	void Close();
+	void close_session();
 
-	CK_RV TokenLogout();
+	CK_RV token_logout();
 	CK_SESSION_INFO GetSessionInfo();
 
 

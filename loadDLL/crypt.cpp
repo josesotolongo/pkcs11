@@ -270,7 +270,6 @@ CK_SLOT_ID_PTR crypt::GetSlotList()
 }
 
 #pragma region Session Management Functions
-
 void crypt::open_session()
 {
 	CK_RV rv = CKR_OK;
@@ -288,12 +287,12 @@ void crypt::open_session()
 	assert(rv == CKR_OK);
 }
 
-void crypt::Close()
+void crypt::close_session()
 {
 	if (hSession == NULL)
 		return;
 
-	TokenLogout();
+	token_logout();
 
 	CloseSession procCloseSession = (CloseSession)GetProcAddress(instLib, "C_CloseSesion");
 	if (procCloseSession == NULL)
@@ -336,38 +335,39 @@ CK_SESSION_INFO crypt::GetSessionInfo()
 #pragma endregion
 
 #pragma region Login - Logout
-CK_RV crypt::TokenLogin()
+CK_RV crypt::token_login()
 {
-	CK_UTF8CHAR pin[] = { "tokenTest2 " };
-	CK_TOKEN_INFO tokenInfo = GetTokenInfo(GetSlotList());
+	CK_UTF8CHAR pin[] = {"SafeNet#0"};
+	
+	tokenInfo = GetTokenInfo(GetSlotList());
 	if (hSession == NULL)
 	{
-		cout << "Session has not been started." << endl;
+		LogAndDisplay(WARN, "Session has not been started...");
 		return CKR_SESSION_HANDLE_INVALID;
 	}
 
 	Login procLogin = (Login)GetProcAddress(instLib, "C_Login");
 	if (procLogin == NULL)
 	{ 
-		cout << "Unable to load Login function" << endl;
+		LogAndDisplay(WARN, "Unable to load Login function...");
 		return CKR_FUNCTION_FAILED;
 	}
-	CK_RV rv = procLogin(hSession, CKU_USER, pin, sizeof(pin) - 1);
+	CK_RV rv = procLogin(hSession, CKU_SO, pin, sizeof(pin) - 1);
 	return rv;
 }
 
-CK_RV crypt::TokenLogout()
+CK_RV crypt::token_logout()
 {
 	if (hSession == NULL)
 	{
-		cout << "Unable to logout of session." << endl;
+		LogAndDisplay(WARN, "Unable to logout of session...");
 		return CKR_SESSION_HANDLE_INVALID;
 	}
 
 	Logout procLogout = (Logout)GetProcAddress(instLib, "C_Logout");
 	if (procLogout == NULL)
 	{
-		cout << "Unable to use Logout function" << endl;
+		LogAndDisplay(WARN, "Unable to use Logout function...");
 		return CKR_FUNCTION_FAILED;
 	}
 	CK_RV rv = procLogout(hSession);
@@ -385,13 +385,14 @@ void crypt::KeyCreation()
 		return;
 	}
 
-	CK_RV rv = TokenLogin();
-	if (rv == CKR_OK)
+	CK_RV rv = token_login();
+	if (rv == CKR_OK || rv == CKR_USER_ALREADY_LOGGED_IN)
 	{
 		CK_OBJECT_HANDLE hObject = CK_INVALID_HANDLE;
 
-		static CK_OBJECT_CLASS objClass = CKO_SECRET_KEY;
 		char objLabel[32];
+
+		static CK_OBJECT_CLASS objClass = CKO_SECRET_KEY;
 		static CK_BBOOL ckTrue = TRUE;
 		static CK_BBOOL ckFalse = FALSE;
 
@@ -399,23 +400,18 @@ void crypt::KeyCreation()
 
 		// DES3 Key Length
 		static CK_BYTE usKeyLength = 24;
+		CK_BYTE val[24] = {};
 
 		CK_ATTRIBUTE objectTemplate[] =
 		{
 			
-			{CKA_TOKEN,         &ckTrue,    sizeof(CK_BBOOL)},      /* Permanent Key -> set false for session key */ 
-			{CKA_ENCRYPT,       &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_DECRYPT,       &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_SIGN,          &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_VERIFY,        &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_WRAP,          &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_UNWRAP,        &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_EXTRACTABLE,   &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_MODIFIABLE,    &ckFalse,   sizeof(CK_BBOOL)},
-			{CKA_PRIVATE,       &ckTrue,	sizeof(CK_BBOOL)},
-			{CKA_SENSITIVE,     &ckTrue,    sizeof(CK_BBOOL)},
-			{CKA_DERIVE,        &ckFalse,   sizeof(CK_BBOOL)},
-			{CKA_VALUE_LEN,		&usKeyLength, sizeof(usKeyLength)},
+			{CKA_TOKEN,         &ckTrue,		sizeof(CK_BBOOL)},      /* Permanent Key -> set false for session key */
+			{CKA_ENCRYPT,       &ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_DECRYPT,		&ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_SIGN,			&ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_VERIFY,		&ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_WRAP,			&ckTrue,		sizeof(CK_BBOOL)},
+			{CKA_VALUE_LEN,		&usKeyLength,	sizeof(usKeyLength)},
 			{CKA_LABEL,         NULL,   0},
 		};
 		CK_ULONG objectSize = sizeof(objectTemplate) / sizeof(CK_ATTRIBUTE);
@@ -431,6 +427,8 @@ void crypt::KeyCreation()
 		rv = procGenKey(hSession, &mechanism, objectTemplate, objectSize, &hObject);
 		assert(rv == CKR_OK);
 	}
+
+	close_session();
 }
 
 #pragma endregion
